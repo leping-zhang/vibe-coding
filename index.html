@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Peter. — 写代码，有趣说。</title>
+<style>
+  /* ============ 基础 ============ */
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --olive-deep: #23271b;
+    --olive: #3a4030;
+    --olive-light: #9aa284;
+    --cream: #f2f0e4;
+    --cream-dim: rgba(242, 240, 228, .68);
+    --accent: #d8c96a;
+    --font-display: "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+  }
+
+  html { scroll-behavior: auto; }
+  body {
+    font-family: var(--font-display);
+    background: var(--olive-deep);
+    color: var(--cream);
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ============ 全屏视频层（fixed 背景） ============ */
+  .video-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    background: #22261c url("bg.png") center / cover no-repeat;
+  }
+  .video-layer video {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 100vw;
+    height: 100vh;
+    min-width: 100%;
+    min-height: 100%;
+    object-fit: cover;
+    transform: translate(-50%, -50%) scale(1.12) translate3d(var(--px, 0px), var(--py, 0px), 0);
+    will-change: transform;
+  }
+  #heroVideo { opacity: 1; transition: opacity .5s ease; }
+  #mainVideo { opacity: 0; transition: opacity .5s ease; pointer-events: none; }
+  body:not([data-state="hero"]) #heroVideo { opacity: 0; }
+  body[data-state="video"]  #mainVideo { opacity: 1; }
+
+  .vignette {
+    position: fixed; inset: 0; z-index: 1; pointer-events: none;
+    background:
+      linear-gradient(to bottom, rgba(20,23,15,.5), transparent 20%),
+      linear-gradient(to top,    rgba(20,23,15,.6), transparent 24%);
+  }
+
+  /* ============ 全局固定导航 ============ */
+  .site-nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 40;
+    display: flex; align-items: flex-start; justify-content: space-between;
+    padding: 22px clamp(24px, 4.5vw, 70px) 0;
+    font-size: 12px; letter-spacing: .18em;
+    transition: opacity .4s ease;
+  }
+  .site-nav .logo { font-weight: 800; font-size: 19px; letter-spacing: .04em; }
+  .site-nav .logo i { font-style: normal; color: var(--accent); }
+  .site-nav .menu { display: flex; gap: clamp(16px, 3vw, 40px); color: var(--cream-dim); padding-top: 4px; }
+  .site-nav .menu a { color: inherit; text-decoration: none; transition: color .25s ease; padding-bottom: 5px; }
+  .site-nav .menu a:hover { color: var(--cream); }
+  .site-nav .menu a.on { color: var(--cream); border-bottom: 2px solid var(--accent); }
+  .site-nav .role { text-align: right; color: var(--cream-dim); line-height: 1.8; font-size: 10px; }
+  .site-nav .role b { color: var(--cream); font-size: 11px; letter-spacing: .22em; font-weight: 700; }
+
+  /* ============ 推挤容器：第一段滚动刷视频 + 第二段横向转场 ============ */
+  /* 总高度由 JS 依据两段视频时长动态计算 */
+  .push-wrap {
+    position: relative;
+    z-index: 5;
+  }
+  .push-sticky {
+    position: sticky; top: 0;
+    height: 100vh;
+    overflow: hidden;
+  }
+  .push-track {
+    display: flex;
+    width: 200%;
+    height: 100%;
+    will-change: transform;
+  }
+  .push-track .hero,
+  .push-track .resume { width: 50%; flex-shrink: 0; }
+
+  /* 第二屏初始停在视口右侧外，转场时滑入 */
+  .push-track .resume { margin-left: 0; }
+
+  /* ============ 第一屏（参考图版式） ============ */
+  .hero {
+    position: relative; z-index: 5;
+    height: 100vh;
+    padding: 0 clamp(24px, 4.5vw, 70px);
+    display: flex; flex-direction: column; justify-content: flex-end;
+  }
+  .hero-inner {
+    position: relative; flex: 1;
+    padding-top: clamp(90px, 14vh, 140px);
+  }
+
+  /* 左：主标语块 */
+  .hero-tag {
+    font-size: 11px; letter-spacing: .4em; color: var(--cream-dim);
+    margin-bottom: 26px;
+  }
+  .hero-mega {
+    font-size: clamp(52px, 8.5vw, 128px);
+    font-weight: 900; line-height: .96; letter-spacing: .01em;
+    text-shadow: 0 10px 50px rgba(0,0,0,.4);
+    margin-bottom: 34px;
+  }
+  .hero-mega .dot { color: var(--accent); }
+  .hero-intro {
+    font-size: clamp(14px, 1.5vw, 17px); line-height: 2;
+    color: var(--cream); letter-spacing: .1em; margin-bottom: 30px;
+  }
+  .hero-intro .dim { color: var(--cream-dim); }
+  .cta-pill {
+    display: inline-flex; align-items: center; gap: 12px;
+    padding: 13px 26px; border-radius: 999px;
+    background: rgba(35,39,27,.55); border: 1px solid rgba(242,240,228,.28);
+    backdrop-filter: blur(8px);
+    color: var(--cream); text-decoration: none;
+    font-size: 13px; letter-spacing: .2em;
+    transition: background .25s ease, transform .25s ease, border-color .25s ease;
+  }
+  .cta-pill .arr {
+    width: 26px; height: 26px; border-radius: 50%;
+    background: var(--cream); color: #23271b;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 12px; transition: transform .25s ease;
+  }
+  .cta-pill:hover { background: rgba(35,39,27,.8); border-color: rgba(216,201,106,.6); transform: translateY(-2px); }
+  .cta-pill:hover .arr { transform: translate(2px, -2px); }
+
+  /* 右中：A CURIOUS MIND. */
+  .hero-side {
+    position: absolute; right: 0; top: clamp(120px, 22vh, 220px);
+    max-width: 240px; text-align: left;
+  }
+  .hero-side h3 {
+    font-size: clamp(18px, 1.8vw, 24px); font-weight: 900;
+    letter-spacing: .04em; margin-bottom: 14px;
+    text-shadow: 0 4px 24px rgba(0,0,0,.4);
+  }
+  .hero-side p {
+    font-size: 12.5px; line-height: 2.1; color: var(--cream-dim);
+    letter-spacing: .12em;
+  }
+
+  /* 右下：HELLO, YOU. */
+  .hello-you {
+    position: absolute; right: 0; bottom: clamp(90px, 14vh, 150px);
+    max-width: 240px; text-align: left;
+  }
+  .hello-you h3 {
+    font-size: clamp(18px, 1.8vw, 24px); font-weight: 900;
+    letter-spacing: .04em; margin-bottom: 12px;
+    text-shadow: 0 4px 24px rgba(0,0,0,.4);
+  }
+  .hello-you p {
+    font-size: 12.5px; line-height: 2; color: var(--cream-dim); letter-spacing: .12em;
+  }
+  .hello-you .look {
+    display: block; margin-top: 6px;
+    font-size: 10px; letter-spacing: .3em; color: rgba(242,240,228,.45);
+  }
+
+  /* 底部状态栏（第一屏专属） */
+  .hero-foot {
+    position: relative;
+    display: flex; align-items: center; gap: 22px;
+    padding: 16px 0 20px;
+    font-size: 11px; letter-spacing: .25em; color: var(--cream-dim);
+  }
+  .hero-foot .line {
+    flex: 1; height: 1px; background: rgba(242,240,228,.22);
+    position: relative;
+  }
+  .hero-foot .line i {
+    position: absolute; top: 50%; left: 0;
+    width: 9px; height: 9px; border-radius: 50%;
+    background: var(--cream);
+    transform: translate(-2px, -50%);
+    transition: left .2s ease;
+  }
+  .hero-foot .timer { min-width: 150px; text-align: right; white-space: nowrap; }
+  .hero-foot .timer b { color: var(--cream); font-weight: 700; }
+
+  .scroll-explore {
+    position: absolute; left: 50%; bottom: clamp(70px, 11vh, 120px);
+    transform: translateX(-50%);
+    text-align: center; pointer-events: none;
+    font-size: 10px; letter-spacing: .4em; text-indent: .4em;
+    color: rgba(242,240,228,.6);
+    transition: opacity .4s ease;
+  }
+  .scroll-explore .down {
+    display: block; margin-top: 10px; font-size: 15px;
+    animation: downMove 1.8s ease-in-out infinite;
+  }
+  @keyframes downMove {
+    0%, 100% { transform: translateY(0); opacity: 1; }
+    60%      { transform: translateY(7px); opacity: .3; }
+  }
+  body:not([data-state="hero"]) .scroll-explore { opacity: 0; transition: opacity .45s ease; pointer-events: none; }
+
+  /* ============================================================
+     第二屏：人物履历（履历图全屏铺满，文字叠加）
+     ============================================================ */
+  .resume {
+    position: relative; z-index: 5;
+    height: 100vh;
+    display: flex; flex-direction: column;
+    padding: 96px clamp(24px, 4.5vw, 70px) 0;
+  }
+  /* 履历图全屏背景 */
+  .resume-bg {
+    position: absolute; inset: 0; z-index: 0; overflow: hidden;
+  }
+  .resume-bg img {
+    width: 100%; height: 100%; object-fit: cover; object-position: center 20%;
+    display: block;
+  }
+  .resume-bg::after { /* 压暗四周，保证文字可读 */
+    content: ""; position: absolute; inset: 0;
+    background:
+      linear-gradient(to bottom, rgba(20,23,15,.78), rgba(20,23,15,.15) 30%, rgba(20,23,15,.12) 60%, rgba(20,23,15,.82)),
+      radial-gradient(120% 90% at 18% 45%, rgba(20,23,15,.55), transparent 60%);
+  }
+
+  .resume-grid {
+    position: relative; z-index: 2;
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1.15fr 1fr;
+    gap: clamp(24px, 4vw, 60px);
+    align-items: center;
+    max-width: 1320px; margin: 0 auto; width: 100%;
+    padding: clamp(30px, 6vh, 70px) 0 clamp(80px, 12vh, 120px);
+  }
+
+  .bio-label {
+    font-size: 11px; letter-spacing: .35em; color: var(--cream-dim);
+    display: flex; align-items: center; gap: 10px; margin-bottom: 26px;
+  }
+  .bio-label::before { content: "■"; color: var(--accent); font-size: 9px; }
+  .mega {
+    font-size: clamp(46px, 6.2vw, 88px);
+    font-weight: 900; line-height: .98; letter-spacing: .01em;
+    margin-bottom: 30px;
+    text-shadow: 0 8px 40px rgba(0,0,0,.35);
+  }
+  .bio-title {
+    font-size: clamp(18px, 1.8vw, 24px); font-weight: 700;
+    letter-spacing: .3em; margin-bottom: 22px;
+  }
+  .bio-list { list-style: none; }
+  .bio-list li {
+    font-size: 13px; color: var(--cream-dim); line-height: 2.3;
+    letter-spacing: .14em;
+    display: flex; align-items: baseline; gap: 10px;
+  }
+  .bio-list li::before { content: "—"; color: var(--accent); }
+  .bio-more {
+    margin-top: 26px; font-size: 12px; letter-spacing: .2em;
+    color: var(--cream-dim);
+    display: inline-flex; align-items: center; gap: 10px;
+    text-decoration: none; transition: color .25s ease, gap .25s ease;
+  }
+  .bio-more::before { content: "▶"; font-size: 9px; color: var(--accent); }
+  .bio-more:hover { color: var(--cream); gap: 16px; }
+
+  .timeline { position: relative; }
+  .ghost-year {
+    font-size: clamp(90px, 12vw, 180px);
+    font-weight: 900; line-height: 1;
+    color: rgba(242,240,228,.08);
+    letter-spacing: .02em;
+    margin-bottom: -0.35em;
+    user-select: none;
+  }
+  .timeline .found {
+    font-size: 11px; letter-spacing: .4em; color: var(--cream-dim);
+    margin-bottom: 16px;
+  }
+  .timeline h3 {
+    font-size: clamp(20px, 2.2vw, 30px); font-weight: 800;
+    letter-spacing: .06em; line-height: 1.5;
+    border-top: 1px solid rgba(242,240,228,.25);
+    padding-top: 22px;
+  }
+  .timeline p {
+    margin-top: 16px; font-size: 13px; line-height: 2.1;
+    color: var(--cream-dim); letter-spacing: .08em;
+    max-width: 380px;
+  }
+
+  .resume-foot {
+    position: relative; z-index: 2;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 20px;
+    border-top: 1px solid rgba(242,240,228,.18);
+    padding: 18px 0 22px;
+    font-size: 11px; letter-spacing: .25em; color: var(--cream-dim);
+  }
+  .resume-foot .dash { flex: 1; height: 1px; background: rgba(242,240,228,.25); position: relative; overflow: hidden; }
+  .resume-foot .dash::after {
+    content: ""; position: absolute; left: 0; top: 0; height: 100%; width: 34%;
+    background: var(--accent);
+  }
+  .resume-foot .contact { text-align: right; line-height: 1.9; letter-spacing: .2em; }
+  .resume-foot .contact b { color: var(--cream); font-weight: 700; }
+
+  /* ============ 第三阶段：滚动文案 ============ */
+  .caption-stage {
+    position: fixed; inset: 0; z-index: 15;
+    display: flex; justify-content: center; align-items: center;
+    pointer-events: none;
+  }
+  .caption {
+    position: absolute;
+    max-width: min(720px, 86vw);
+    text-align: center;
+    opacity: 0;
+    transform: translateY(24px);
+    transition: opacity .5s ease, transform .5s ease;
+  }
+  .caption.on { opacity: 1; transform: translateY(0); }
+  .caption .step {
+    font-size: 12px; letter-spacing: .45em; text-indent: .45em;
+    color: var(--accent); margin-bottom: 16px;
+  }
+  .caption h2 {
+    font-size: clamp(28px, 5vw, 56px); font-weight: 800; line-height: 1.2;
+    text-shadow: 0 4px 30px rgba(0,0,0,.4);
+  }
+  .caption p {
+    margin-top: 14px; font-size: clamp(14px, 1.5vw, 17px);
+    line-height: 1.9; color: rgba(242,240,228,.85);
+  }
+  .caption .cols { display: flex; gap: 14px; justify-content: center; margin-top: 20px; flex-wrap: wrap; }
+  .caption .chip {
+    padding: 8px 18px; border: 1px solid rgba(242,240,228,.35);
+    border-radius: 999px; font-size: 13px; letter-spacing: .1em;
+    background: rgba(20,23,15,.35); backdrop-filter: blur(6px);
+  }
+
+  footer {
+    position: relative; z-index: 5;
+    background: #1d2115; text-align: center;
+    padding: 34px 20px 44px; font-size: 12px; letter-spacing: .2em;
+    color: rgba(242,240,228,.45);
+  }
+
+  /* ============ 加载遮罩 ============ */
+  .loader {
+    position: fixed; inset: 0; z-index: 99;
+    background: #22261c; display: flex; flex-direction: column;
+    justify-content: center; align-items: center; gap: 18px;
+    transition: opacity .6s ease, visibility .6s ease;
+  }
+  .loader.hide { opacity: 0; visibility: hidden; }
+  .loader .ring {
+    width: 42px; height: 42px; border-radius: 50%;
+    border: 3px solid rgba(242,240,228,.15); border-top-color: var(--accent);
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loader .txt { font-size: 12px; letter-spacing: .4em; text-indent: .4em; color: rgba(242,240,228,.6); }
+
+  /* ============ 响应式 ============ */
+  @media (max-width: 1024px) {
+    .resume-grid { grid-template-columns: 1fr 1fr; padding-bottom: 200px; }
+    .hero-side { position: static; max-width: none; margin-top: 40px; }
+    .hello-you { display: none; }
+  }
+  @media (max-width: 720px) {
+    .site-nav .menu { display: none; }
+    .hero-mega { font-size: clamp(44px, 13vw, 72px); }
+    .resume-grid { grid-template-columns: 1fr; padding-bottom: 240px; gap: 40px; }
+    .resume-bg img { object-position: 62% center; }  /* 移动端聚焦人物 */
+    .resume-foot .contact { display: none; }
+    .caption .cols { gap: 10px; }
+    .ghost-year { font-size: clamp(70px, 22vw, 110px); }
+    .hero-foot .timer { display: none; }
+  }
+</style>
+</head>
+<body data-state="hero">
+
+  <!-- 加载遮罩 -->
+  <div class="loader" id="loader">
+    <div class="ring"></div>
+    <div class="txt">LOADING</div>
+  </div>
+
+  <!-- 全屏视频层 -->
+  <div class="video-layer">
+    <video id="heroVideo"
+           src="hero.mp4"
+           muted playsinline webkit-playsinline
+           preload="auto"
+           poster="bg.png"></video>
+    <video id="mainVideo"
+           src="main.mp4"
+           muted playsinline webkit-playsinline
+           preload="auto"
+           poster="bg.png"></video>
+  </div>
+  <div class="vignette"></div>
+
+  <!-- 全局导航 -->
+  <header class="site-nav">
+    <div class="logo">Peter<i>.</i></div>
+    <nav class="menu" id="navMenu">
+      <a href="#top" class="on" data-nav="hero">初次见面</a>
+      <a href="#resume" data-nav="resume">个人履历</a>
+      <a href="#" onclick="return false;">作品文件夹</a>
+      <a href="#" onclick="return false;">作品预览</a>
+      <a href="#" onclick="return false;">无限可能</a>
+    </nav>
+    <div class="role"><b>FULL-STACK DEVELOPER</b><br/>Clean code. Solid products.</div>
+  </header>
+
+  <!-- ============ 横向推挤段：第一屏 → 第二屏 ============ -->
+  <div class="push-wrap" id="pushWrap">
+    <div class="push-sticky">
+      <div class="push-track" id="pushTrack">
+
+        <!-- 第一屏 -->
+        <section class="hero" id="top">
+    <div class="hero-inner">
+      <div class="hero-tag">PETER / FULL-STACK DEVELOPER &amp; A LITTLE CURIOSITY</div>
+      <h1 class="hero-mega">CODE<br/>BUILD<br/>SHIP<span class="dot">.</span></h1>
+      <p class="hero-intro">
+        嗨，我是 Peter。<br/>
+        <span class="dim">把藏不住的好奇，写成一行行能跑的代码。</span>
+      </p>
+      <a class="cta-pill" href="#resume">先认识我，再看项目 <span class="arr">↗</span></a>
+
+      <div class="hero-side">
+        <h3>CLEAN CODE, SOLID PRODUCT.</h3>
+        <p>琢磨架构，也琢磨体验。<br/>每一行代码，都可能成为下一个产品的起点。</p>
+      </div>
+
+      <div class="hello-you">
+        <h3>HELLO, YOU.</h3>
+        <p>移动鼠标，我会看向你的位置。</p>
+        <span class="look" id="lookDir">LOOKING DOWN</span>
+      </div>
+    </div>
+
+    <div class="scroll-explore">SCROLL TO EXPLORE<span class="down">↓</span></div>
+
+    <div class="hero-foot">
+      <span>01 / INTRO&nbsp;&nbsp;初次见面</span>
+      <span class="line"><i id="heroDot"></i></span>
+      <span class="timer"><b id="heroTime">00:00</b> / <span id="heroDur">00:10</span>&nbsp;&nbsp;滚动播放</span>
+    </div>
+  </section>
+
+  <!-- ============ 第二屏：人物履历（履历图全屏） ============ -->
+  <section class="resume" id="resume">
+    <!-- 全屏履历图 -->
+    <div class="resume-bg">
+      <img src="profile.png" alt="" aria-hidden="true" />
+    </div>
+
+    <div class="resume-grid">
+      <div class="resume-left">
+        <div class="bio-label">BIOGRAPHY / 个人履历</div>
+        <h2 class="mega">CODE.<br/>SHIP.<br/>ITERATE.</h2>
+        <div class="bio-title">Peter 懂开发</div>
+        <ul class="bio-list">
+          <li>全栈开发，前后端通吃</li>
+          <li>独立从 0 到 1 交付产品</li>
+          <li>性能优化与工程化</li>
+          <li>把想法变成能跑的东西</li>
+        </ul>
+        <a class="bio-more" href="#" onclick="return false;">更多资料与经历</a>
+      </div>
+
+      <div class="timeline">
+        <div class="ghost-year">2009</div>
+        <div class="found">FOUNDATION · 起点</div>
+        <h3>2009–2013<br/>南开大学 · 软件工程本科</h3>
+        <p>从软件工程专业出发，建立系统的开发方法论；此后十余年，一路从后端走到前端，再走到产品与架构。</p>
+      </div>
+    </div>
+
+    <div class="resume-foot">
+      <span>02 / BIOGRAPHY / 个人履历</span>
+      <span class="dash"></span>
+      <div class="contact">
+        <b>peter@dev.email</b><br/>
+        GITHUB: @PETER-DEV
+      </div>
+    </div>
+  </section>
+
+      </div><!-- /push-track -->
+    </div><!-- /push-sticky -->
+  </div><!-- /push-wrap -->
+
+  <!-- 第三段：滚动驱动主视频 -->
+  <div id="scrollZone" style="position:relative;z-index:0;pointer-events:none;"></div>
+
+  <!-- 滚动文案 -->
+  <div class="caption-stage" id="captionStage">
+    <div class="caption" data-start="0.00" data-end="0.14">
+      <div class="step">CHAPTER 01</div>
+      <h2>从一行代码开始</h2>
+      <p>每一个产品，都始于一个想法和一句 console.log("Hello, World")。</p>
+    </div>
+    <div class="caption" data-start="0.16" data-end="0.36">
+      <div class="step">CHAPTER 02</div>
+      <h2>把想法变成产品</h2>
+      <p>从原型到上线，我负责整个链路：设计、开发、优化、部署。</p>
+      <div class="cols">
+        <span class="chip">Web App</span>
+        <span class="chip">小程序</span>
+        <span class="chip">可视化</span>
+      </div>
+    </div>
+    <div class="caption" data-start="0.38" data-end="0.60">
+      <div class="step">CHAPTER 03</div>
+      <h2>技术是表达的方式</h2>
+      <p>流畅的交互、细腻的动效、可靠的工程，是我写代码的执念。</p>
+      <div class="cols">
+        <span class="chip">JavaScript</span>
+        <span class="chip">CSS 动效</span>
+        <span class="chip">性能优化</span>
+        <span class="chip">Node.js</span>
+      </div>
+    </div>
+    <div class="caption" data-start="0.62" data-end="0.84">
+      <div class="step">CHAPTER 04</div>
+      <h2>细节里藏着热爱</h2>
+      <p>60fps 的滚动、毫秒级的响应、像素级的还原 —— 这些看不到的地方，恰恰最值得花时间。</p>
+    </div>
+    <div class="caption" data-start="0.86" data-end="1.01">
+      <div class="step">FIN</div>
+      <h2>一起创造点什么吧</h2>
+      <p>页面到底了，感谢观看 ↓</p>
+    </div>
+  </div>
+
+  <footer id="contact">
+    © 2025 PETER · MADE WITH HTML + CSS + JS · SCROLLTELLING
+  </footer>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ============================================================
+   * 结构
+   *  [推挤段 push] 分两个阶段（总高度 = 两个视频时长 × 100vh 之和）：
+   *    阶段一：下滑逐帧刷首屏视频（不播放，按滚动进度 seek）
+   *    阶段二：视频刷完后，继续下滑 → 第二屏从右往左把第一屏顶出
+   *  [第三段 zone]  main时长 × 100vh   滚动驱动主视频
+   * ============================================================ */
+
+  var mainVideo   = document.getElementById("mainVideo");
+  var heroVideo   = document.getElementById("heroVideo");
+  var scrollZone  = document.getElementById("scrollZone");
+  var pushWrap    = document.getElementById("pushWrap");
+  var pushTrack   = document.getElementById("pushTrack");
+  var heroDot     = document.getElementById("heroDot");
+  var heroTime    = document.getElementById("heroTime");
+  var heroDur     = document.getElementById("heroDur");
+  var lookDir     = document.getElementById("lookDir");
+  var navLinks    = Array.prototype.slice.call(document.querySelectorAll("#navMenu a[data-nav]"));
+  var loader      = document.getElementById("loader");
+  var captions    = Array.prototype.slice.call(document.querySelectorAll(".caption"));
+
+  /* 推挤段两个阶段的滚动坐标 */
+  var duration = 0;      // 主视频时长
+  var heroDuration = 0;  // 首屏视频时长
+  var zoneTop = 0;
+  var zoneH   = 1;
+
+  /* 推挤段两个阶段的滚动坐标 */
+  var scrubStart = 0;    // 阶段一：开始刷视频的 scrollY（= 0）
+  var scrubDist  = 1;    // 阶段一：刷完整个首屏视频需要的滚动距离
+  var pushStart  = 0;    // 阶段二：开始转场的 scrollY
+  var pushDist   = 1;    // 阶段二：转场需要的滚动距离（2vh）
+
+  function measure() {
+    var vh = window.innerHeight;
+
+    // 阶段一：首屏视频时长 × 100vh（每秒视频 = 100vh 滚动）
+    scrubDist = Math.max(vh, Math.round((heroDuration || 0) * vh));
+    // 阶段二：固定 2vh 转场
+    pushDist = vh * 2;
+
+    pushWrap.style.height = (scrubDist + pushDist + vh) + "px";
+    pushStart = scrubStart + scrubDist;
+    zoneH = Math.max(1, Math.round((duration || 0) * vh));
+    scrollZone.style.height = zoneH + "px";
+    zoneTop = scrollZone.offsetTop;
+  }
+
+  /* ============================================================
+   * 平滑滚动值：滚轮是离散跳动的，直接映射会让视频一帧一帧"蹦"。
+   * 用一个高系数(0.3)的阻尼跟随：约 160ms 收敛，
+   * 肉眼几乎无滞后，但能补齐滚轮的帧间空隙，让视频连续滑动。
+   * 大幅跳跃（拖滚动条/锚点跳转）时直接吸附，不播放追赶动画。
+   * ============================================================ */
+  var smoothY = 0;
+  var smoothInit = false;
+  function smoothStep() {
+    var y = window.scrollY || window.pageYOffset || 0;
+    if (!smoothInit) { smoothY = y; smoothInit = true; }
+    var d = y - smoothY;
+    if (Math.abs(d) > window.innerHeight * 1.5) {
+      smoothY = y;                       // 大跳跃：直接吸附
+    } else if (Math.abs(d) < 0.5) {
+      smoothY = y;
+    } else {
+      smoothY += d * 0.3;                // 快速阻尼跟随
+    }
+    return smoothY;
+  }
+
+  /* ---------- 阶段一：滚动刷首屏视频（平滑滚动值 → 帧连续） ---------- */
+  function updateHeroScrub(y) {
+    if (heroDuration <= 0) return;
+    var p = (y - scrubStart) / scrubDist;
+    p = Math.min(1, Math.max(0, p));
+    var t = Math.min(heroDuration - 0.05, Math.max(0, p * heroDuration));
+    if (Math.abs(heroVideo.currentTime - t) > 0.012) {
+      try { heroVideo.currentTime = t; } catch (e) {}
+    }
+  }
+
+  /* ---------- 阶段二：推挤横移（平滑滚动值 → 顺滑转场） ---------- */
+  function updatePush(y) {
+    var p = (y - pushStart) / pushDist;
+    p = Math.min(1, Math.max(0, p));
+    pushTrack.style.transform = "translate3d(" + (-p * 50) + "%,0,0)";
+  }
+
+  /* ---------- 主视频初始化 ---------- */
+  function onMeta() {
+    duration = mainVideo.duration || 0;
+    if (!isFinite(duration) || duration <= 0) { setTimeout(onMeta, 200); return; }
+    mainVideo.pause();
+    mainVideo.currentTime = 0;
+    measure();
+    hideLoader();
+  }
+  mainVideo.addEventListener("loadedmetadata", onMeta);
+  mainVideo.load();
+
+  /* ---------- 首屏视频元数据：拿到时长后停止自动播放，改滚动驱动 ---------- */
+  function onHeroMeta() {
+    heroDuration = heroVideo.duration || 0;
+    if (!isFinite(heroDuration) || heroDuration <= 0) { setTimeout(onHeroMeta, 200); return; }
+    heroVideo.pause();               // 关键：不自动播放，完全交给滚动
+    heroVideo.currentTime = 0;
+    measure();
+    heroDur.textContent = fmt(heroDuration);
+    hideLoader();
+  }
+  heroVideo.addEventListener("loadedmetadata", onHeroMeta);
+  heroVideo.load();
+
+  var loaderHidden = false;
+  function hideLoader() {
+    if (loaderHidden) return;
+    loaderHidden = true;
+    setTimeout(function () { loader.classList.add("hide"); }, 350);
+  }
+  setTimeout(hideLoader, 8000);
+
+  /* ---------- 首屏计时器 00:0X / 00:10（滚动驱动下依然准确） ---------- */
+  function fmt(t) {
+    t = Math.max(0, Math.floor(t));
+    var s = t % 60, m = Math.floor(t / 60);
+    return (m < 10 ? "0" + m : m) + ":" + (s < 10 ? "0" + s : s);
+  }
+  heroVideo.addEventListener("timeupdate", function () {
+    heroTime.textContent = fmt(heroVideo.currentTime || 0);
+  });
+
+  /* ---------- 滚动读取 & 状态机（状态用真实 y，画面用平滑 y） ---------- */
+  function readScroll() {
+    var y = window.scrollY || window.pageYOffset || 0;
+    var vh = window.innerHeight;
+
+    // 状态：hero（阶段一，刷视频）→ resume（阶段二转场/完成后）→ video（第三段）
+    var state;
+    if (y < pushStart - vh * 0.1)     state = "hero";
+    else if (y < zoneTop - vh * 0.45) state = "resume";
+    else                              state = "video";
+    document.body.dataset.state = state;
+
+    // 导航高亮
+    navLinks.forEach(function (a) {
+      a.classList.toggle("on", a.dataset.nav === state);
+    });
+
+    // 第一屏底部圆点：整页进度
+    var docH = document.documentElement.scrollHeight - vh;
+    if (heroDot && docH > 0) {
+      heroDot.style.left = ((y / docH) * 100) + "%";
+    }
+  }
+  window.addEventListener("scroll", readScroll, { passive: true });
+  window.addEventListener("resize", function () { measure(); readScroll(); });
+
+  /* ---------- 文案 fade（基于实际滚动位置，而非插值） ---------- */
+  var activeIdx = -1;
+  function updateCaptions(y) {
+    var best = -1;
+    if (y >= zoneTop - 2) {
+      var p = Math.min(1, Math.max(0, (y - zoneTop) / zoneH));
+      for (var i = 0; i < captions.length; i++) {
+        var s = parseFloat(captions[i].dataset.start);
+        var e = parseFloat(captions[i].dataset.end);
+        if (p >= s && p < e) { best = i; break; }
+      }
+    }
+    if (best !== activeIdx) {
+      captions.forEach(function (c, i) { c.classList.toggle("on", i === best); });
+      activeIdx = best;
+    }
+  }
+
+  /* ---------- 主视频：滚动驱动 seek（排队锁防堆积） ---------- */
+  var applying = false;
+  var pendingTime = -1;
+  var EPS = 0.025;
+
+  mainVideo.addEventListener("seeked", function () {
+    applying = false;
+    if (pendingTime >= 0) {
+      var t = pendingTime; pendingTime = -1;
+      trySeek(t);
+    }
+  });
+
+  function trySeek(t) {
+    if (applying) { pendingTime = t; return; }
+    if (Math.abs(mainVideo.currentTime - t) < EPS) return;
+    applying = true;
+    try { mainVideo.currentTime = t; }
+    catch (e) { applying = false; }
+  }
+
+  function loop() {
+    var y = smoothStep();          // 平滑滚动值：补齐滚轮帧间空隙
+    var inZone = y >= zoneTop - 2;
+
+    // 首屏视频 + 转场：用平滑值驱动，帧连续不蹦跳
+    updateHeroScrub(y);
+    updatePush(y);
+
+    // 主视频：同样用平滑值直接映射
+    if (inZone && duration > 0) {
+      var p = Math.min(1, Math.max(0, (y - zoneTop) / zoneH));
+      var t = Math.min(duration - 0.05, Math.max(0, p * duration));
+      trySeek(t);
+    }
+    updateCaptions(y);
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  /* ============================================================
+   * 首屏鼠标视差 + LOOKING 方向指示
+   * ============================================================ */
+  var mx = 0, my = 0, cmx = 0, cmy = 0;
+  var videoLayer = document.querySelector(".video-layer");
+  var heroInner  = document.querySelector(".hero-inner");
+
+  window.addEventListener("mousemove", function (e) {
+    var nx = (e.clientX / window.innerWidth) - 0.5;
+    var ny = (e.clientY / window.innerHeight) - 0.5;
+    mx = nx * window.innerWidth * 0.06;
+    my = ny * window.innerHeight * 0.06;
+    if (heroInner) {
+      heroInner.style.setProperty("--mx", (-nx * 14) + "px");
+      heroInner.style.setProperty("--my", (-ny * 10) + "px");
+    }
+    // LOOKING 方向（相对屏幕中心）
+    if (lookDir) {
+      var ax = Math.abs(nx), ay = Math.abs(ny);
+      var dir;
+      if (ax < 0.12 && ay < 0.12)      dir = "LOOKING AT YOU";
+      else if (ay >= ax)               dir = ny < 0 ? "LOOKING UP" : "LOOKING DOWN";
+      else                             dir = nx < 0 ? "LOOKING LEFT" : "LOOKING RIGHT";
+      if (lookDir.textContent !== dir) lookDir.textContent = dir;
+    }
+  }, { passive: true });
+
+  (function mouseLoop() {
+    cmx += (mx - cmx) * 0.08;
+    cmy += (my - cmy) * 0.08;
+    videoLayer.style.setProperty("--px", (-cmx) + "px");
+    videoLayer.style.setProperty("--py", (-cmy) + "px");
+    requestAnimationFrame(mouseLoop);
+  })();
+
+  /* ---------- 首屏视频不自动播放：完全交给滚动驱动（低电量模式也无需兜底） ---------- */
+
+  /* ---------- 初始化 ---------- */
+  measure();
+  readScroll();
+  window.addEventListener("load", function () { measure(); readScroll(); });
+})();
+</script>
+</body>
+</html>
